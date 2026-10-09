@@ -1,7 +1,7 @@
 <template>
   <div class="login-container">
     <el-card class="login-card">
-      <h2 style="text-align:center;">系统登录</h2>
+      <h2 style="text-align:center">系统登录</h2>
       <el-form ref="loginFormRef" :model="loginForm" label-width="80px">
         <el-form-item label="账号">
           <el-input v-model="loginForm.username"></el-input>
@@ -10,49 +10,53 @@
           <el-input v-model="loginForm.password" type="password"></el-input>
         </el-form-item>
         <el-form-item>
-          <el-button type="primary" @click="handleLogin">登录</el-button>
+          <el-button type="primary" @click="handleLogin" style="width:100%">登录</el-button>
         </el-form-item>
       </el-form>
     </el-card>
   </div>
 </template>
-
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
-
+// 修改导入路径，用@
+import { loginApi } from '@/api/user/user'
 const router = useRouter()
 const loginFormRef = ref(null)
 const loginForm = ref({
   username: '',
   password: ''
 })
-
-const handleLogin = () => {
-  if (loginForm.value.username === 'admin' && loginForm.value.password === '123456') {
-    localStorage.setItem('token', 'test-token-123')
-    router.push('/')
-  } else {
-    alert('账号或密码错误')
+// 登录提交函数
+const handleLogin = async () => {
+  try {
+    const res = await loginApi(loginForm.value)
+    if (res.code === 200) {
+      localStorage.setItem('token', res.data.token)
+      // 新增：存储角色ID，Layout动态菜单读取用
+      localStorage.setItem('roleId', res.data.roleId)
+      alert('登录成功！')
+      // 跳转到首页Layout
+      router.push('/home')
+    } else {
+      alert(res.msg || '账号或密码错误')
+    }
+  } catch (error) {
+    console.log(error)
+    alert('请求后端失败，请确认SpringBoot已经启动！')
   }
 }
 </script>
-
 <style scoped>
 .login-container {
-  /* 占满整个视口高度 */
-  height: 100vh;
   width: 100vw;
-  background-color: #1f2937;
-  /* flex居中 */
+  height: 100vh;
   display: flex;
-  justify-content: center;
   align-items: center;
-  margin: 0;
-  padding: 0;
+  justify-content: center;
+  background-color: #f5f7fa;
 }
 .login-card {
-  width: 400px;
-  padding: 30px;
+  width: 380px;
 }
 </style>
