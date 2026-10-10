@@ -46,6 +46,7 @@
         @current-change="loadUserList"
       />
     </el-card>
+
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" title="用户信息">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
@@ -65,6 +66,24 @@
         <el-form-item label="邮箱" prop="email">
           <el-input v-model="formData.email"></el-input>
         </el-form-item>
+
+        <!-- ⭐ 新增：角色选择（多选） -->
+        <el-form-item label="角色" prop="roleIds">
+          <el-select
+            v-model="formData.roleIds"
+            multiple
+            placeholder="请选择角色"
+            style="width:100%"
+          >
+            <el-option
+              v-for="role in roleList"
+              :key="role.id"
+              :label="role.roleName"
+              :value="role.id"
+            />
+          </el-select>
+        </el-form-item>
+
         <el-form-item label="状态">
           <el-radio-group v-model="formData.status">
             <el-radio :value="1">启用</el-radio>
@@ -84,6 +103,9 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { getUserListApi, addUserApi, getUserByIdApi, updateUserApi, deleteUserApi } from '@/api/user/user'
+// ⭐ 新增：引入查询所有角色的接口
+import { getAllRoleApi } from '@/api/role/role'
+
 // 查询条件增加分页参数 pageNum pageSize
 const queryForm = reactive({
   username: '',
@@ -91,9 +113,10 @@ const queryForm = reactive({
   pageSize: 10
 })
 const tableData = ref([])
-const total = ref(0) // 总条数
+const total = ref(0)
 const dialogVisible = ref(false)
 const formRef = ref(null)
+
 const formData = reactive({
   id: null,
   username: '',
@@ -101,8 +124,13 @@ const formData = reactive({
   nickName: '',
   phone: '',
   email: '',
-  status: 1
+  status: 1,
+  roleIds: []   // ⭐ 新增：角色ID数组
 })
+
+// ⭐ 新增：角色下拉列表
+const roleList = ref([])
+
 const formRules = reactive({
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' }
@@ -110,7 +138,6 @@ const formRules = reactive({
   password: [
     {
       validator: (rule, value, callback) => {
-        // 新增：id为空，密码必填
         if (formData.id === null) {
           if (!value) {
             callback(new Error('请输入密码'))
@@ -118,7 +145,6 @@ const formRules = reactive({
             callback()
           }
         } else {
-          // 编辑：密码可以为空，不校验
           callback()
         }
       },
@@ -135,18 +161,31 @@ const formRules = reactive({
     { type: 'email', message: '邮箱格式不正确', trigger: 'blur' }
   ]
 })
-// 加载列表（分页改造，后端返回 {records:[],total:数字}）
+
+// 加载列表
 const loadUserList = async () => {
   const res = await getUserListApi(queryForm)
   tableData.value = res.records
   total.value = res.total
 }
+
+// ⭐ 新增：加载所有角色
+const loadRoleList = async () => {
+  try {
+    const res = await getAllRoleApi()
+    roleList.value = res || []
+  } catch (err) {
+    console.error('加载角色列表失败', err)
+  }
+}
+
 // 重置查询
 const resetQuery = () => {
   queryForm.username = ''
   queryForm.pageNum = 1
   loadUserList()
 }
+
 // 打开新增弹窗
 const openAddDialog = () => {
   dialogVisible.value = true
@@ -157,17 +196,21 @@ const openAddDialog = () => {
   formData.phone = ''
   formData.email = ''
   formData.status = 1
+  formData.roleIds = []   // ⭐ 新增：清空角色
   formRef.value?.clearValidate()
 }
+
 // 打开编辑弹窗
 const openEditDialog = async (row) => {
   dialogVisible.value = true
   const res = await getUserByIdApi(row.id)
   Object.assign(formData, res)
-  // 编辑默认清空密码框，用户填写新内容才会更新密码
   formData.password = ''
+  // ⭐ 新增：roleIds 兜底，防止后端没返回导致 el-select 报错
+  if (!formData.roleIds) formData.roleIds = []
   formRef.value?.clearValidate()
 }
+
 // 删除
 const handleDelete = async (row) => {
   await ElMessageBox.confirm(
@@ -189,19 +232,20 @@ const handleDelete = async (row) => {
     ElMessage.info({ message: '已取消删除', offset: 20 })
   })
 }
-// 表单提交：先校验，校验通过再调用异步提交函数
+
+// 表单提交
 const submitForm = () => {
   formRef.value.validate((valid) => {
     if (!valid) return
     doSubmit()
   })
 }
-// 真正接口请求，单独抽离，不再嵌套在validate回调内
+
+// 真正接口请求
 const doSubmit = async () => {
   try {
     let res
     if (formData.id) {
-      // 编辑
       res = await updateUserApi(formData)
       if (res === 'success') {
         ElMessage.success({ message: '修改成功', offset: 20 })
@@ -211,7 +255,6 @@ const doSubmit = async () => {
         ElMessage.error({ message: res, offset: 20 })
       }
     } else {
-      // 新增
       res = await addUserApi(formData)
       if (res === 'success') {
         ElMessage.success({ message: '新增成功', offset: 20 })
@@ -225,8 +268,10 @@ const doSubmit = async () => {
     ElMessage.error({ message: '操作失败，请重试', offset: 20 })
   }
 }
+
 onMounted(() => {
   loadUserList()
+  loadRoleList()   // ⭐ 新增：加载角色列表
 })
 </script>
 
