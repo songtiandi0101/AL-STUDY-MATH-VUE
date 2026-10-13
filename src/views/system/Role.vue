@@ -29,9 +29,10 @@
           </template>
         </el-table-column>
         <el-table-column prop="createTime" label="创建时间"></el-table-column>
-        <el-table-column label="操作" width="180">
+        <el-table-column label="操作" width="300">
           <template #default="scope">
             <el-button size="small" type="primary" @click="openEditDialog(scope.row)">编辑</el-button>
+            <el-button size="small" type="warning" @click="openAssignDialog(scope.row)">分配权限</el-button>
             <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -48,14 +49,15 @@
         @current-change="loadRoleList"
       />
     </el-card>
+
     <!-- 新增/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" title="角色信息">
       <el-form ref="formRef" :model="formData" :rules="formRules" label-width="80px">
         <el-form-item label="角色名称" prop="roleName">
-          <el-input v-model="formData.roleName"></el-input>
+          <el-input v-model="formData.roleName" placeholder="请输入角色名称"></el-input>
         </el-form-item>
         <el-form-item label="角色编码" prop="roleCode">
-          <el-input v-model="formData.roleCode"></el-input>
+          <el-input v-model="formData.roleCode" placeholder="请输入角色编码"></el-input>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -63,16 +65,43 @@
         <el-button type="primary" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- ⭐ 分配权限弹窗 -->
+    <el-dialog v-model="assignDialogVisible" title="分配菜单权限" width="500px">
+      <el-tree
+        ref="menuTreeRef"
+        :data="menuTreeData"
+        show-checkbox
+        node-key="id"
+        :props="{ label: 'menuName', children: 'children' }"
+        default-expand-all
+        style="max-height:400px;overflow-y:auto;"
+      />
+      <template #footer>
+        <el-button @click="assignDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="submitAssign">保存</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-// 导入role接口（和user.js写法统一）
-import { getRoleListApi, addRoleApi, getRoleByIdApi, updateRoleApi, deleteRoleApi } from '@/api/role/role'
+// 角色接口
+import {
+  getRoleListApi,
+  addRoleApi,
+  getRoleByIdApi,
+  updateRoleApi,
+  deleteRoleApi,
+  getRoleMenuIdsApi,
+  assignRoleMenusApi
+} from '@/api/role/role'
+// 菜单树接口
+import { getMenuTreeApi } from '@/api/menu/menu'
 
-// 查询条件：角色名称、角色编码、分页
+// 查询条件
 const queryForm = reactive({
   roleName: '',
   roleCode: '',
@@ -80,15 +109,23 @@ const queryForm = reactive({
   pageSize: 10
 })
 const tableData = ref([])
-const total = ref(0) // 总条数
+const total = ref(0)
 const dialogVisible = ref(false)
 const formRef = ref(null)
+
+// ⭐ 分配权限弹窗相关
+const assignDialogVisible = ref(false)
+const menuTreeRef = ref(null)
+const menuTreeData = ref([])
+const currentAssignRoleId = ref(null)
+
 const formData = reactive({
   id: null,
   roleName: '',
   roleCode: '',
   delFlag: 0
 })
+
 const formRules = reactive({
   roleName: [
     { required: true, message: '请输入角色名称', trigger: 'blur' }
@@ -98,17 +135,28 @@ const formRules = reactive({
   ]
 })
 
+// 平铺列表转树（兼容后端返回平铺/树形两种格式）
+const buildTree = (list, parentId) => {
+  return list
+    .filter(item => item.parentId === parentId)
+    .map(item => {
+      const children = buildTree(list, item.id)
+      return children.length > 0 ? { ...item, children } : { ...item }
+    })
+}
+
 // 加载角色分页列表
 const loadRoleList = async () => {
   const res = await getRoleListApi(queryForm)
-  // ======重点：如果你的axios自动剥了一层data，就用下面这行======
-  // const pageResult = res.data
-  // tableData.value = pageResult.records
-  // total.value = pageResult.total
-
-  // ======后端直接返回PageResult对象（无外层包装）用这行======
   tableData.value = res.records
   total.value = res.total
+}
+
+// ⭐ 加载菜单树（供分配权限弹窗用）
+const loadMenuTree = async () => {
+  const res = await getMenuTreeApi()
+  const list = Array.isArray(res) ? res : (res.data || [])
+  menuTreeData.value = buildTree(list, 0)
 }
 
 // 重置查询条件
@@ -137,6 +185,40 @@ const openEditDialog = async (row) => {
   formRef.value?.clearValidate()
 }
 
+// ⭐ 打开分配权限弹窗
+const openAssignDialog = async (row) => {
+  currentAssignRoleId.value = row.id
+  assignDialogVisible.value = true
+
+  // 1. 查询角色已分配的菜单ID
+  const menuIds = await getRoleMenuIdsApi(row.id)
+
+  // 2. 等待 DOM 渲染后，回显勾选状态
+  await nextTick()
+  // ⚠️ 第二个参数 false：只勾选给定的 key，父节点自动根据子节点状态变全选/半选
+  menuTreeRef.value.setCheckedKeys(menuIds || [], false)
+}
+
+// ⭐ 提交分配
+const submitAssign = async () => {
+  // 全选节点 + 半选节点（半选的父目录也要提交，否则子菜单挂不上去）
+  const checkedKeys = menuTreeRef.value.getCheckedKeys()
+  const halfCheckedKeys = menuTreeRef.value.getHalfCheckedKeys()
+  const menuIds = [...checkedKeys, ...halfCheckedKeys]
+
+  const res = await assignRoleMenusApi({
+    roleId: currentAssignRoleId.value,
+    menuIds
+  })
+
+  if (res === 'success') {
+    ElMessage.success({ message: '分配成功', offset: 20 })
+    assignDialogVisible.value = false
+  } else {
+    ElMessage.error({ message: res, offset: 20 })
+  }
+}
+
 // 删除角色
 const handleDelete = async (row) => {
   await ElMessageBox.confirm(
@@ -146,9 +228,7 @@ const handleDelete = async (row) => {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
       type: 'warning',
-      customStyle: {
-        marginTop: '-15vh'
-      }
+      customStyle: { marginTop: '-15vh' }
     }
   ).then(async () => {
     await deleteRoleApi(row.id)
@@ -172,7 +252,6 @@ const doSubmit = async () => {
   try {
     let res
     if (formData.id) {
-      // 编辑
       res = await updateRoleApi(formData)
       if (res === 'success') {
         ElMessage.success({ message: '修改成功', offset: 20 })
@@ -182,7 +261,6 @@ const doSubmit = async () => {
         ElMessage.error({ message: res, offset: 20 })
       }
     } else {
-      // 新增
       res = await addRoleApi(formData)
       if (res === 'success') {
         ElMessage.success({ message: '新增成功', offset: 20 })
@@ -199,6 +277,7 @@ const doSubmit = async () => {
 
 onMounted(() => {
   loadRoleList()
+  loadMenuTree()   // ⭐ 加载菜单树
 })
 </script>
 

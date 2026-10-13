@@ -15,7 +15,7 @@ export function getRoleListApi(query) {
   return request.get('/sys/role/list', { params: query })
 }
 
-// ⭐ 新增：查询所有角色（下拉框用，不分页）
+// 查询所有角色（下拉框用，不分页）
 export function getAllRoleApi() {
   return request.get('/sys/role/all')
 }
@@ -28,4 +28,16 @@ export function updateRoleApi(data) {
 // 删除角色
 export function deleteRoleApi(id) {
   return request.delete(`/sys/role/delete/${id}`)
+}
+
+// ==================== ⭐ 新增：角色-菜单权限相关 ====================
+
+// 查询某个角色已分配的菜单ID列表（编辑权限时回显勾选状态）
+export function getRoleMenuIdsApi(roleId) {
+  return request.get(`/sys/role/menuIds/${roleId}`)
+}
+
+// 给角色分配菜单权限（全量覆盖：先删旧，再插新）
+export function assignRoleMenusApi(data) {
+  return request.post('/sys/role/assignMenus', data)
 }
