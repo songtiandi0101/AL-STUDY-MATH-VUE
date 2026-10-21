@@ -33,6 +33,11 @@ const routes = [
         path: 'system/menu',
         name: 'Menu',
         component: () => import('../views/system/Menu.vue')
+      },
+      {
+        path: 'questions/import',  // 子路由不要加开头的 /
+        name: 'QuestionImport',
+        component: () => import('../views/questions/QuestionImport.vue')
       }
     ]
   },
