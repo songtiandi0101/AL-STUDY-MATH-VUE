@@ -29,6 +29,7 @@
 
 <script setup>
 import { ElMessage } from 'element-plus'
+import axios from 'axios'
 import { Upload } from '@element-plus/icons-vue'
 // 如果你有对应的 API 接口，请在这里引入
 // import { uploadQuestionImageApi } from '@/api/question/question'
@@ -53,24 +54,22 @@ const beforeUpload = (file) => {
 const handleUpload = async ({ file }) => {
   const formData = new FormData()
   formData.append('file', file)
-
-  // 模拟加载提示
   const loading = ElMessage({ message: '正在上传并识别，请稍候...', type: 'info', duration: 0 })
-
   try {
-    // ==========================================
-    // ⭐ 这里换成你真实的请求 API
-    // 如果要调 Python 的 FastAPI，可以用 pythonRequest.post(...)
-    // ==========================================
-    // const res = await uploadQuestionImageApi(formData)
-    
-    // 模拟成功返回
-    setTimeout(() => {
-      loading.close()
-      ElMessage.success('图片解析完成，题目已录入！')
-      // 可以在这里做后续操作，比如跳转到题目列表，或者弹窗显示识别结果
-    }, 2000)
-    
+    // 请求fastapi接口
+    const res = await axios.post('http://127.0.0.1:8000/upload_image', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data'
+      }
+    })
+    loading.close()
+    if (res.data.code === 200) {
+      ElMessage.success('图片解析完成！')
+      // ✅ res.data.data.question 就是识别出来的题干
+      console.log('识别题干：', res.data.data.question)
+      // 这里你可以弹窗展示题干，或者回填到表单输入框
+      // example: questionText.value = res.data.data.question
+    }
   } catch (error) {
     loading.close()
     ElMessage.error('导入失败，请重试')
