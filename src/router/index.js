@@ -38,6 +38,11 @@ const routes = [
         path: 'questions/import',  // 子路由不要加开头的 /
         name: 'QuestionImport',
         component: () => import('../views/questions/QuestionImport.vue')
+      },
+      {
+        path: 'questions/question',  // 子路由不要加开头的 /
+        name: 'Question',
+        component: () => import('../views/questions/question.vue')
       }
     ]
   },
