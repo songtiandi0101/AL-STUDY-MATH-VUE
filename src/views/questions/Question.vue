@@ -222,7 +222,7 @@ import {
   deleteBatchQuestionsApi,
   updatePublishStatusApi
 } from '@/api/questions/question'
-import { getKnowledgePointTreeApi } from '@/api/math/knowledgePoint'
+import { getKnowledgePointTreeApi } from '@/api/questions/knowledgePoint'
 
 const questionTypeOptions = [
   { value: 1, label: '单选' },
