@@ -120,7 +120,7 @@ import {
   addKnowledgePointApi,
   updateKnowledgePointApi,
   deleteKnowledgePointApi
-} from '@/api/math/knowledgePoint'
+} from '@/api/questions/knowledgePoint'
 
 // ==================== 查询/表格 ====================
 
