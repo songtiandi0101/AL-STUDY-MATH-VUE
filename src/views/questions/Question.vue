@@ -38,49 +38,79 @@
         </el-button>
       </div>
 
-      <!-- 表格 -->
-      <el-table :data="tableData" border stripe @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="50" />
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="题型" width="90">
-          <template #default="scope">
-            <el-tag>{{ formatQuestionType(scope.row.questionType) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="grade" label="年级" width="100" />
-        <el-table-column label="难度" width="150">
-          <template #default="scope">
-            <el-rate :model-value="scope.row.difficulty || 0" disabled />
-          </template>
-        </el-table-column>
-        <el-table-column prop="content" label="题干" show-overflow-tooltip />
-        <el-table-column prop="source" label="来源" width="130" show-overflow-tooltip />
-        <el-table-column label="状态" width="130">
-          <template #default="scope">
-            <el-switch
-              :model-value="scope.row.isPublished"
-              :active-value="1"
-              :inactive-value="0"
-              active-text="发布"
-              inactive-text="草稿"
-              @change="(val) => handlePublishChange(scope.row, val)"
-            />
-          </template>
-        </el-table-column>
-        <el-table-column label="创建时间" width="170">
-          <template #default="scope">
-            {{ formatTime(scope.row.createTime) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="scope">
-            <el-button size="small" type="primary" @click="openEditDialog(scope.row)">编辑</el-button>
-            <el-button size="small" type="danger" @click="handleDelete(scope.row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+      <!-- ========== 两列卡片区域（替代原来table） ========== -->
+      <div class="two-col-wrap">
+        <!-- 左列：前5条 -->
+        <div class="col-item">
+          <div class="col-title">题目组一</div>
+          <div
+            v-for="(row,idx) in leftList"
+            :key="row.id"
+            class="question-card"
+            :class="{ 'card-active': selectedIds.includes(row.id) }"
+            @click="toggleSelect(row)"
+          >
+            <div class="card-head">
+              <el-tag size="small">{{ formatQuestionType(row.questionType) }}</el-tag>
+              <span class="card-grade">{{ row.grade || '-' }}</span>
+              <el-rate :model-value="row.difficulty || 0" disabled size="small" />
+            </div>
+            <div class="card-content">{{ row.content }}</div>
+            <div class="card-foot">
+              <span>来源：{{ row.source || '-' }}</span>
+              <el-switch
+                :model-value="row.isPublished"
+                :active-value="1"
+                :inactive-value="0"
+                active-text="发布"
+                inactive-text="草稿"
+                size="small"
+                @change.stop="(val) => handlePublishChange(row, val)"
+              />
+            </div>
+            <div class="card-op">
+              <el-button size="small" type="primary" @click.stop="openEditDialog(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+            </div>
+          </div>
+        </div>
+        <!-- 右列：5条之后 -->
+        <div class="col-item">
+          <div class="col-title">题目组二</div>
+          <div
+            v-for="(row,idx) in rightList"
+            :key="row.id"
+            class="question-card"
+            :class="{ 'card-active': selectedIds.includes(row.id) }"
+            @click="toggleSelect(row)"
+          >
+            <div class="card-head">
+              <el-tag size="small">{{ formatQuestionType(row.questionType) }}</el-tag>
+              <span class="card-grade">{{ row.grade || '-' }}</span>
+              <el-rate :model-value="row.difficulty || 0" disabled size="small" />
+            </div>
+            <div class="card-content">{{ row.content }}</div>
+            <div class="card-foot">
+              <span>来源：{{ row.source || '-' }}</span>
+              <el-switch
+                :model-value="row.isPublished"
+                :active-value="1"
+                :inactive-value="0"
+                active-text="发布"
+                inactive-text="草稿"
+                size="small"
+                @change.stop="(val) => handlePublishChange(row, val)"
+              />
+            </div>
+            <div class="card-op">
+              <el-button size="small" type="primary" @click.stop="openEditDialog(row)">编辑</el-button>
+              <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
 
-      <!-- 分页组件 -->
+      <!-- 分页 -->
       <el-pagination
         style="margin-top:16px;text-align:right"
         v-model:current-page="queryForm.pageNum"
@@ -273,6 +303,10 @@ const formRules = reactive({
   answer: [{ required: true, message: '请输入标准答案', trigger: 'blur' }]
 })
 
+// 左右两列拆分：左 0~4（5条），右5~9
+const leftList = computed(() => tableData.value.slice(0,5))
+const rightList = computed(() => tableData.value.slice(5,10))
+
 // 单选/多选才需要编辑选项
 const showOptions = computed(() => formData.questionType === 1 || formData.questionType === 2)
 
@@ -282,11 +316,6 @@ const correctIndex = computed(() => formData.options.findIndex((o) => o.isCorrec
 const formatQuestionType = (type) => {
   const t = questionTypeOptions.find((i) => i.value === type)
   return t ? t.label : '-'
-}
-
-const formatTime = (time) => {
-  if (!time) return ''
-  return String(time).replace('T', ' ').slice(0, 19)
 }
 
 const loadQuestionList = async () => {
@@ -314,8 +343,14 @@ const resetQuery = () => {
   loadQuestionList()
 }
 
-const handleSelectionChange = (rows) => {
-  selectedIds.value = rows.map((r) => r.id)
+// 卡片点击选中，替代原来selection-change
+const toggleSelect = (row) => {
+  const idx = selectedIds.value.indexOf(row.id)
+  if(idx > -1){
+    selectedIds.value.splice(idx,1)
+  }else{
+    selectedIds.value.push(row.id)
+  }
 }
 
 // ==================== 选项操作 ====================
@@ -401,8 +436,12 @@ const openEditDialog = async (row) => {
   const res = await getQuestionByIdApi(row.id)
   Object.assign(formData, res)
   if (!formData.options) formData.options = []
-  if (!formData.kpIds) formData.kpIds = []
-  // 兜底：后端返回的 isCorrect 可能是数字
+  // ========= 重点修改：回显知识点 =========
+  if (formData.knowledgePoints && Array.isArray(formData.knowledgePoints)) {
+    formData.kpIds = formData.knowledgePoints.map(item => Number(item.id))
+  } else if (!formData.kpIds) {
+    formData.kpIds = []
+  }
   formData.options.forEach((o) => {
     o.isCorrect = o.isCorrect ? 1 : 0
   })
@@ -420,6 +459,8 @@ const doSubmit = async () => {
   try {
     // 构造提交数据
     const payload = { ...formData }
+    // ========= 重点修改：保证传给后端的 kpIds 是数字Long数组 =========
+    payload.kpIds = formData.kpIds.map(Number)
 
     // 非选择题不提交选项
     if (!showOptions.value) {
@@ -532,5 +573,72 @@ onMounted(() => {
   display: flex;
   align-items: center;
   margin-bottom: 8px;
+}
+.two-col-wrap {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+}
+.col-item {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 600px;
+  overflow-y: auto;
+}
+.col-title {
+  font-weight: bold;
+  font-size:15px;
+  margin-bottom:12px;
+  padding-bottom:8px;
+  border-bottom:1px solid #eee;
+}
+.question-card {
+  border:1px solid #dcdfe6;
+  border-radius:6px;
+  padding:10px;
+  margin-bottom:10px;
+  cursor: pointer;
+  transition: 0.2s;
+}
+.question-card:hover {
+  border-color:#409eff;
+  box-shadow: 0 2px 8px rgba(64,158,255,0.1);
+}
+.card-active {
+  background-color: #f0f7ff;
+  border-color:#409eff;
+}
+.card-head {
+  display:flex;
+  gap:8px;
+  align-items:center;
+  margin-bottom:6px;
+}
+.card-grade {
+  font-size:13px;
+  color:#666;
+}
+.card-content {
+  font-size:14px;
+  color:#333;
+  line-height:1.5;
+  margin-bottom:8px;
+  display:-webkit-box;
+  -webkit-line-clamp:2;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+.card-foot {
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  font-size:12px;
+  color:#888;
+  margin-bottom:8px;
+}
+.card-op {
+  display:flex;
+  gap:6px;
 }
 </style>
