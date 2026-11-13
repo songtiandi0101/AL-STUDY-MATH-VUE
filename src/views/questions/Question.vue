@@ -33,7 +33,7 @@
 
       <div style="margin:15px 0;">
         <el-button type="primary" @click="openAddDialog">新增题目</el-button>
-        <el-button type="danger" :disabled="selectedIds.length === 0" @click="handleBatchDelete">
+        <el-button type="danger" :disabled="selectedIds.length === 0" @click="openBatchDeleteConfirm">
           批量删除
         </el-button>
       </div>
@@ -70,7 +70,7 @@
             </div>
             <div class="card-op">
               <el-button size="small" type="primary" @click.stop="openEditDialog(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+              <el-button size="small" type="danger" @click.stop="openSingleDeleteConfirm(row)">删除</el-button>
             </div>
           </div>
         </div>
@@ -104,7 +104,7 @@
             </div>
             <div class="card-op">
               <el-button size="small" type="primary" @click.stop="openEditDialog(row)">编辑</el-button>
-              <el-button size="small" type="danger" @click.stop="handleDelete(row)">删除</el-button>
+              <el-button size="small" type="danger" @click.stop="openSingleDeleteConfirm(row)">删除</el-button>
             </div>
           </div>
         </div>
@@ -237,12 +237,21 @@
         <el-button type="primary" @click="submitForm">确定</el-button>
       </template>
     </el-dialog>
+
+    <!-- ========= 自定义删除确认弹窗（替换ElMessageBox） ========= -->
+    <el-dialog v-model="delConfirmVisible" title="删除确认" width="420px" center>
+      <p>{{ delConfirmText }}</p>
+      <template #footer>
+        <el-button @click="delConfirmVisible = false">取消</el-button>
+        <el-button type="danger" @click="doDelAction">删除</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   getQuestionListApi,
   addQuestionApi,
@@ -302,6 +311,12 @@ const formRules = reactive({
   content: [{ required: true, message: '请输入题干', trigger: 'blur' }],
   answer: [{ required: true, message: '请输入标准答案', trigger: 'blur' }]
 })
+
+// 删除确认弹窗相关
+const delConfirmVisible = ref(false)
+let delType = ref('single') // single / batch
+let currentDelRow = ref(null)
+const delConfirmText = ref('确定要删除该题目吗？删除后不可恢复！')
 
 // 左右两列拆分：左 0~4（5条），右5~9
 const leftList = computed(() => tableData.value.slice(0,5))
@@ -499,50 +514,40 @@ const doSubmit = async () => {
   }
 }
 
-// ==================== 删除 / 发布状态 ====================
-
-const handleDelete = async (row) => {
-  await ElMessageBox.confirm('确定要删除该题目吗？删除后不可恢复！', '删除确认', {
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-    type: 'warning',
-    customStyle: { marginTop: '-15vh' }
-  })
-    .then(async () => {
-      await deleteQuestionApi(row.id)
-      ElMessage.success({ message: '删除成功', offset: 20 })
-      loadQuestionList()
-    })
-    .catch(() => {
-      ElMessage.info({ message: '已取消删除', offset: 20 })
-    })
+// ==================== 删除确认弹窗逻辑 ====================
+const openSingleDeleteConfirm = (row) => {
+  delType.value = 'single'
+  currentDelRow.value = row
+  delConfirmText.value = '确定要删除该题目吗？删除后不可恢复！'
+  delConfirmVisible.value = true
 }
-
-const handleBatchDelete = async () => {
-  await ElMessageBox.confirm(
-    `确定要删除选中的 ${selectedIds.value.length} 道题目吗？`,
-    '批量删除确认',
-    {
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      type: 'warning',
-      customStyle: { marginTop: '-15vh' }
-    }
-  )
-    .then(async () => {
+const openBatchDeleteConfirm = () => {
+  delType.value = 'batch'
+  delConfirmText.value = `确定要删除选中的 ${selectedIds.value.length} 道题目吗？`
+  delConfirmVisible.value = true
+}
+const doDelAction = async () => {
+  delConfirmVisible.value = false
+  try {
+    if (delType.value === 'single') {
+      await deleteQuestionApi(currentDelRow.value.id)
+      ElMessage.success({ message: '删除成功', offset: 20 })
+    } else {
       const res = await deleteBatchQuestionsApi(selectedIds.value)
       if (res === 'success') {
         ElMessage.success({ message: '批量删除成功', offset: 20 })
-        loadQuestionList()
       } else {
         ElMessage.error({ message: res, offset: 20 })
+        return
       }
-    })
-    .catch(() => {
-      ElMessage.info({ message: '已取消删除', offset: 20 })
-    })
+    }
+    loadQuestionList()
+  } catch (err) {
+    ElMessage.error({ message: '删除失败，请重试', offset: 20 })
+  }
 }
 
+// ==================== 发布状态 ====================
 const handlePublishChange = async (row, val) => {
   try {
     const res = await updatePublishStatusApi(row.id, val)
