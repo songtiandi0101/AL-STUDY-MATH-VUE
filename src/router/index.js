@@ -48,6 +48,11 @@ const routes = [
         path: 'questions/knowledgePoint',  // 子路由不要加开头的 /
         name: 'KnowledgePoint',
         component: () => import('../views/questions/KnowledgePoint.vue')
+      },
+      {
+        path: 'graph/add',  // 子路由不要加开头的 /
+        name: 'GraphAdd',
+        component: () => import('../views/questions/KnowledgePoint.vue')
       }
     ]
   },
