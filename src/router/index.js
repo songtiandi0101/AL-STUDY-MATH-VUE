@@ -50,10 +50,10 @@ const routes = [
         component: () => import('../views/questions/KnowledgePoint.vue')
       },
       {
-        path: 'graph/add',  // 子路由不要加开头的 /
-        name: 'GraphAdd',
-        component: () => import('../views/questions/KnowledgePoint.vue')
-      }
+        path: 'graph/function',  // 子路由不要加开头的 /
+        name: 'Function',
+        component: () => import('../views/graph/Function.vue')
+      },
     ]
   },
   {
